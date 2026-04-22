@@ -735,7 +735,73 @@ function playHappyBirthday(onEnd) {
   setTimeout(() => { hbPlaying = false; if (onEnd) onEnd(); }, totalDur * 1000);
 }
 
-// ── CANDLE BLOW-OUT ───────────────────────────────────────────────────
+// ── TRUMPET FANFARE ───────────────────────────────────────────────────
+function playFanfare() {
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+
+  function trumpetNote(freq, start, dur, vol = 0.38) {
+    // Sawtooth + slight detune = brassy trumpet character
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const g = ctx.createGain();
+    const distort = ctx.createWaveShaper();
+
+    // Soft distortion curve for brass buzz
+    const curve = new Float32Array(256);
+    for (let i = 0; i < 256; i++) {
+      const x = (i * 2) / 256 - 1;
+      curve[i] = (Math.PI + 180) * x / (Math.PI + 180 * Math.abs(x));
+    }
+    distort.curve = curve;
+
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(freq, start);
+    osc2.frequency.setValueAtTime(freq * 1.004, start); // slight detune = chorus
+
+    // Trumpet envelope: fast attack, slight swell, quick release
+    g.gain.setValueAtTime(0, start);
+    g.gain.linearRampToValueAtTime(vol, start + 0.03);
+    g.gain.setValueAtTime(vol * 0.85, start + dur * 0.3);
+    g.gain.linearRampToValueAtTime(vol, start + dur * 0.6);
+    g.gain.linearRampToValueAtTime(0, start + dur);
+
+    osc1.connect(distort); osc2.connect(distort);
+    distort.connect(g); g.connect(ctx.destination);
+    osc1.start(start); osc1.stop(start + dur + 0.05);
+    osc2.start(start); osc2.stop(start + dur + 0.05);
+  }
+
+  // Classic "ta-da!" military fanfare: G4-G4-G4-Eb4  G4-Bb4-G4-Bb4-C5
+  const G4=392, Bb4=466.16, C5=523.25, Eb5=622.25, D5=587.33, F5=698.46;
+  const notes = [
+    // short punchy intro
+    { f: G4,  s: 0.0,  d: 0.12 },
+    { f: G4,  s: 0.14, d: 0.12 },
+    { f: G4,  s: 0.28, d: 0.12 },
+    { f: Eb5, s: 0.42, d: 0.28 },
+    // rise
+    { f: G4,  s: 0.76, d: 0.14 },
+    { f: Bb4, s: 0.92, d: 0.14 },
+    { f: G4,  s: 1.08, d: 0.14 },
+    { f: Bb4, s: 1.24, d: 0.14 },
+    // triumphant hold
+    { f: C5,  s: 1.40, d: 0.55 },
+    { f: C5,  s: 2.00, d: 0.14 },
+    { f: D5,  s: 2.16, d: 0.14 },
+    { f: Eb5, s: 2.32, d: 0.55 },
+    // final flourish
+    { f: D5,  s: 2.92, d: 0.14 },
+    { f: C5,  s: 3.08, d: 0.14 },
+    { f: Bb4, s: 3.24, d: 0.14 },
+    { f: G4,  s: 3.40, d: 0.55 },
+  ];
+
+  notes.forEach(n => trumpetNote(n.f, t + n.s, n.d, 0.35));
+}
+
+
 let candleSequenceRunning = false;
 
 document.getElementById('candle-btn').addEventListener('click', function() {
@@ -752,15 +818,16 @@ document.getElementById('candle-btn').addEventListener('click', function() {
 
     // 3. Play Happy Birthday synth
     playHappyBirthday(() => {
-      // 4. After HB ends → blow candles + confetti
-      candlesLit = false;
-      launchConfetti();
-      this.textContent = '✦ Relight the candles';
-      this.disabled = false;
-      candleSequenceRunning = false;
-
-      // 5. Resume "Perfect" after a short pause
-      setTimeout(() => scResume(), 800);
+      // Play fanfare, THEN blow candles + confetti
+      playFanfare();
+      setTimeout(() => {
+        candlesLit = false;
+        launchConfetti();
+        this.textContent = '✦ Relight the candles';
+        this.disabled = false;
+        candleSequenceRunning = false;
+        setTimeout(() => scResume(), 800);
+      }, 4200); // fanfare is ~4s long
     });
 
   } else if (!candlesLit) {
